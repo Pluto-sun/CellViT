@@ -8,7 +8,7 @@ from tqdm import tqdm
 import numpy as np
 from pathlib import Path
 
-from data_provider.data_factory import get_dataset
+from data_provider.data_factory import data_provider
 from models.classification.cellvit_classifier_encoder import (
     CellViTEncoderClassifier,
     CellViT256EncoderClassifier,
@@ -25,8 +25,8 @@ def get_args():
     # Data arguments
     parser.add_argument('--data', type=str, default='SAHU', help='dataset type')
     parser.add_argument('--root_path', type=str, default='dataset/', help='root path of the data')
-    parser.add_argument('--seq_len', type=int, default=72, help='sequence length')
-    parser.add_argument('--step', type=int, default=1, help='step size')
+    parser.add_argument('--win_size', type=int, default=72, help='window size for time series')
+    parser.add_argument('--step', type=int, default=1, help='step size for sliding window')
     parser.add_argument('--gaf_method', type=str, default='summation', help='GAF method')
     
     # Model arguments
@@ -35,6 +35,7 @@ def get_args():
     parser.add_argument('--pretrained_path', type=str, default=None, help='path to pretrained model')
     parser.add_argument('--vit_structure', type=str, default='SAM-B', help='ViT structure for SAM model')
     parser.add_argument('--num_classes', type=int, default=3, help='number of classes')
+    parser.add_argument('--input_channels', type=int, default=None, help='number of input channels (if None, will be determined from data)')
     parser.add_argument('--drop_rate', type=float, default=0.1, help='dropout rate')
     parser.add_argument('--attn_drop_rate', type=float, default=0.1, help='attention dropout rate')
     parser.add_argument('--drop_path_rate', type=float, default=0.1, help='drop path rate')
@@ -129,24 +130,15 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # Load datasets
-    train_dataset = get_dataset(args.data, args.root_path, 'train', args.seq_len, args.step, args.gaf_method)
-    val_dataset = get_dataset(args.data, args.root_path, 'val', args.seq_len, args.step, args.gaf_method)
+    train_dataset, train_loader = data_provider(args, 'train')
+    val_dataset, val_loader = data_provider(args, 'val')
     
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=args.num_workers,
-        pin_memory=True
-    )
-    
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        pin_memory=True
-    )
+    # 如果未指定输入通道数，从数据集中获取
+    if args.input_channels is None:
+        # 获取一个样本来确定通道数
+        sample_data, _ = next(iter(train_loader))
+        args.input_channels = sample_data.shape[1]  # [B, C, H, W] 中的 C
+        print(f"自动检测到输入通道数: {args.input_channels}")
     
     # Initialize model
     if args.model_arch == 'encoder':
@@ -154,7 +146,7 @@ def main():
             model = CellViTEncoderClassifier(
                 num_classes=args.num_classes,
                 embed_dim=384,
-                input_channels=3,
+                input_channels=args.input_channels,  # 使用检测到的通道数
                 depth=12,
                 num_heads=6,
                 extract_layers=[3, 6, 9, 12],
@@ -166,6 +158,7 @@ def main():
             model = CellViT256EncoderClassifier(
                 model256_path=args.pretrained_path,
                 num_classes=args.num_classes,
+                input_channels=args.input_channels,  # 使用检测到的通道数
                 drop_rate=args.drop_rate,
                 attn_drop_rate=args.attn_drop_rate,
                 drop_path_rate=args.drop_path_rate
@@ -175,6 +168,7 @@ def main():
             model = CellViTSAMEncoderClassifier(
                 model_path=args.pretrained_path,
                 num_classes=args.num_classes,
+                input_channels=args.input_channels,  # 使用检测到的通道数
                 vit_structure=args.vit_structure,
                 drop_rate=args.drop_rate
             )
@@ -184,7 +178,7 @@ def main():
             model = CellViTClassifierWithDecoder(
                 num_classes=args.num_classes,
                 embed_dim=384,
-                input_channels=3,
+                input_channels=args.input_channels,
                 depth=12,
                 num_heads=6,
                 extract_layers=[3, 6, 9, 12],
@@ -196,6 +190,7 @@ def main():
             model = CellViT256ClassifierWithDecoder(
                 model256_path=args.pretrained_path,
                 num_classes=args.num_classes,
+                input_channels=args.input_channels,
                 drop_rate=args.drop_rate,
                 attn_drop_rate=args.attn_drop_rate,
                 drop_path_rate=args.drop_path_rate
@@ -205,6 +200,7 @@ def main():
             model = CellViTSAMClassifierWithDecoder(
                 model_path=args.pretrained_path,
                 num_classes=args.num_classes,
+                input_channels=args.input_channels,
                 vit_structure=args.vit_structure,
                 drop_rate=args.drop_rate
             )

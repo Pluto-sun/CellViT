@@ -54,3 +54,5 @@ results/
 Orig-Metrics
 
 *.csv
+*.pkl
+/logs/

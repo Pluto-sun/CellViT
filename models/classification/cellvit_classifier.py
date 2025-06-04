@@ -102,6 +102,7 @@ class CellViT256Classifier(CellViTClassifier):
         self,
         model256_path: Union[Path, str],
         num_classes: int,
+        input_channels: int = 3,  # 默认值为3，但允许修改
         drop_rate: float = 0,
         attn_drop_rate: float = 0,
         drop_path_rate: float = 0,
@@ -113,12 +114,12 @@ class CellViT256Classifier(CellViTClassifier):
         self.mlp_ratio = 4
         self.qkv_bias = True
         self.extract_layers = [3, 6, 9, 12]
-        self.input_channels = 3  # RGB
+        self.input_channels = input_channels  # 使用传入的通道数
         
         super().__init__(
             num_classes=num_classes,
             embed_dim=self.embed_dim,
-            input_channels=self.input_channels,
+            input_channels=self.input_channels,  # 使用传入的通道数
             depth=self.depth,
             num_heads=self.num_heads,
             extract_layers=self.extract_layers,
@@ -144,9 +145,12 @@ class CellViTSAMClassifier(CellViTClassifier):
         self,
         model_path: Union[Path, str],
         num_classes: int,
+        input_channels: int = 3,  # 默认值为3，但允许修改
         vit_structure: str = "SAM-B",
         drop_rate: float = 0,
     ):
+        self.input_channels = input_channels  # 使用传入的通道数
+        
         if vit_structure.upper() == "SAM-B":
             self.init_vit_b()
         elif vit_structure.upper() == "SAM-L":
@@ -156,14 +160,13 @@ class CellViTSAMClassifier(CellViTClassifier):
         else:
             raise NotImplementedError("Unknown ViT-SAM backbone structure")
             
-        self.input_channels = 3  # RGB
         self.mlp_ratio = 4
         self.qkv_bias = True
         
         super().__init__(
             num_classes=num_classes,
             embed_dim=self.embed_dim,
-            input_channels=self.input_channels,
+            input_channels=self.input_channels,  # 使用传入的通道数
             depth=self.depth,
             num_heads=self.num_heads,
             extract_layers=self.extract_layers,
@@ -188,6 +191,7 @@ class CellViTSAMClassifier(CellViTClassifier):
             global_attn_indexes=self.encoder_global_attn_indexes,
             window_size=14,
             out_chans=self.prompt_embed_dim,
+            in_chans=self.input_channels,  # 使用传入的通道数
         )
         
         # Update classifier input dimension

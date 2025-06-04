@@ -8,6 +8,7 @@ import pickle
 from pyts.image import GramianAngularField
 import matplotlib.pyplot as plt
 import hashlib  # 添加哈希库
+import torch
 warnings.filterwarnings('ignore')
 
 
@@ -26,7 +27,9 @@ class ClassificationSegLoader(Dataset):
         """
         self.flag = flag
         self.step = step
+        print(f"step: {step}")
         self.win_size = win_size
+        print(f"win_size: {win_size}")
         self.gaf_method = args.gaf_method if hasattr(args, 'gaf_method') else 'summation'  # 新增：从args获取GAF方法
 
         # 如果没有提供文件标签映射，则使用默认映射
@@ -156,7 +159,7 @@ class ClassificationSegLoader(Dataset):
             normalize: bool = False
         ) -> np.ndarray:
             """
-            将多维时间序列转换为Gramian角场(GAF)矩阵
+            将多维时间序列转换为Gramian角场(GAF)矩阵，并调整为[N, C, H, W]格式
             
             参数:
             - data: 输入数据（形状[N, T, D]，N=样本数，T=时间步，D=维度数）
@@ -164,7 +167,7 @@ class ClassificationSegLoader(Dataset):
             - normalize: 是否使用pyts内置归一化（若数据已在[-1, 1]，设为False）
             
             返回:
-            - gaf_data: GAF矩阵（形状[N, T, T, D]，数据类型np.float32）
+            - gaf_data: GAF矩阵（形状[N, C, H, W]，其中C=3，数据类型np.float32）
             """
             # 1. 输入维度检查
             if data.ndim != 3:
@@ -187,12 +190,21 @@ class ClassificationSegLoader(Dataset):
             
             # 5. 重组维度为[N, D, T, T]
             reshaped_gaf = batch_gaf.reshape(N, D, T, T)
-            
-            # 6. 调整维度顺序为目标形状[N, T, T, D]
-            target_gaf = reshaped_gaf.transpose(0, 2, 3, 1)
+            print(f"reshaped_gaf: {reshaped_gaf.shape}")
+            # 6. 直接调整为[N, C, H, W]格式，其中C=3
+            # if D > 3:
+            #     # 如果特征维度大于3，只取前3个通道
+            #     target_gaf = reshaped_gaf[:, :3, :, :]
+            # elif D < 3:
+            #     # 如果特征维度小于3，用0填充到3个通道
+            #     padding = np.zeros((N, 3-D, T, T), dtype=np.float32)
+            #     target_gaf = np.concatenate([reshaped_gaf, padding], axis=1)
+            # else:
+            #     # 如果特征维度正好是3，直接使用
+            #     target_gaf = reshaped_gaf
             
             # 7. 转换为深度学习友好的float32类型
-            return target_gaf.astype(np.float32)
+            return reshaped_gaf.astype(np.float32)
         def gaf_to_float32(data: np.ndarray) -> np.ndarray:
             """
             将四维数组中的每个二维矩阵（值范围[-1, 1]）映射到[0, 255]并转换为浮点数（保留小数精度）
@@ -400,11 +412,18 @@ class ClassificationSegLoader(Dataset):
 
     def __getitem__(self, index):
         if self.flag == "train":
-            return np.float32(self.train[index]), np.float32(self.train_labels[index])
+            data = np.float32(self.train[index])  # [T, T, D]
+            # 调整维度顺序为 [D, T, T]，其中D作为通道数
+            # data = np.transpose(data, (2, 0, 1))  # [D, T, T]
+            return torch.from_numpy(data), torch.tensor(self.train_labels[index], dtype=torch.long)
         elif self.flag == "val":
-            return np.float32(self.val[index]), np.float32(self.val_labels[index])
+            data = np.float32(self.val[index])
+            # data = np.transpose(data, (2, 0, 1))
+            return torch.from_numpy(data), torch.tensor(self.val_labels[index], dtype=torch.long)
         else:  # test
-            return np.float32(self.test[index]), np.float32(self.test_labels[index])
+            data = np.float32(self.test[index])
+            # data = np.transpose(data, (2, 0, 1))
+            return torch.from_numpy(data), torch.tensor(self.test_labels[index], dtype=torch.long)
 
     
 

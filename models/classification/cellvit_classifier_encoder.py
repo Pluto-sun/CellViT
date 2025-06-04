@@ -15,7 +15,7 @@ class CellViTEncoderClassifier(nn.Module):
     Args:
         num_classes (int): Number of output classes
         embed_dim (int): Embedding dimension of backbone ViT
-        input_channels (int): Number of input channels
+        input_channels (int): Number of input channels (can be any positive integer)
         depth (int): Depth of the backbone ViT
         num_heads (int): Number of heads of the backbone ViT
         extract_layers (List[int]): List of Transformer Blocks whose outputs should be returned
@@ -29,7 +29,7 @@ class CellViTEncoderClassifier(nn.Module):
         self,
         num_classes: int,
         embed_dim: int,
-        input_channels: int,
+        input_channels: int,  # 现在可以是任意正整数
         depth: int,
         num_heads: int,
         extract_layers: List[int],
@@ -44,7 +44,7 @@ class CellViTEncoderClassifier(nn.Module):
         self.patch_size = 16
         self.num_classes = num_classes
         self.embed_dim = embed_dim
-        self.input_channels = input_channels
+        self.input_channels = input_channels  # 保存实际的输入通道数
         self.depth = depth
         self.num_heads = num_heads
         self.mlp_ratio = mlp_ratio
@@ -68,6 +68,7 @@ class CellViTEncoderClassifier(nn.Module):
             drop_rate=drop_rate,
             attn_drop_rate=attn_drop_rate,
             drop_path_rate=drop_path_rate,
+            in_chans=self.input_channels,  # 使用实际的输入通道数
         )
         
         # Classification head
@@ -105,6 +106,7 @@ class CellViT256EncoderClassifier(CellViTEncoderClassifier):
         self,
         model256_path: Union[Path, str],
         num_classes: int,
+        input_channels: int = 3,  # 默认值改为3，但允许修改
         drop_rate: float = 0,
         attn_drop_rate: float = 0,
         drop_path_rate: float = 0,
@@ -116,12 +118,11 @@ class CellViT256EncoderClassifier(CellViTEncoderClassifier):
         self.mlp_ratio = 4
         self.qkv_bias = True
         self.extract_layers = [3, 6, 9, 12]
-        self.input_channels = 3  # RGB
         
         super().__init__(
             num_classes=num_classes,
             embed_dim=self.embed_dim,
-            input_channels=self.input_channels,
+            input_channels=input_channels,  # 使用传入的通道数
             depth=self.depth,
             num_heads=self.num_heads,
             extract_layers=self.extract_layers,
@@ -147,6 +148,7 @@ class CellViTSAMEncoderClassifier(CellViTEncoderClassifier):
         self,
         model_path: Union[Path, str],
         num_classes: int,
+        input_channels: int = 3,  # 默认值改为3，但允许修改
         vit_structure: str = "SAM-B",
         drop_rate: float = 0,
     ):
@@ -159,14 +161,13 @@ class CellViTSAMEncoderClassifier(CellViTEncoderClassifier):
         else:
             raise NotImplementedError("Unknown ViT-SAM backbone structure")
             
-        self.input_channels = 3  # RGB
         self.mlp_ratio = 4
         self.qkv_bias = True
         
         super().__init__(
             num_classes=num_classes,
             embed_dim=self.embed_dim,
-            input_channels=self.input_channels,
+            input_channels=input_channels,  # 使用传入的通道数
             depth=self.depth,
             num_heads=self.num_heads,
             extract_layers=self.extract_layers,
